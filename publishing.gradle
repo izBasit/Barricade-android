@@ -1,0 +1,108 @@
+apply plugin: 'maven-publish'
+
+ext.getCareemRepositoryUsername = {
+   return rootProject.hasProperty('careem_artifactory_username') ? rootProject.careem_artifactory_username :
+           System.env.careem_artifactory_username
+}
+
+ext.getCareemRepositoryPassword = {
+   return rootProject.hasProperty('careem_artifactory_password') ? rootProject.careem_artifactory_password :
+           System.env.careem_artifactory_password
+}
+
+def isAndroidApp() {
+   return project.plugins.hasPlugin('com.android.application')
+}
+
+def isAndroidLib() {
+   return project.plugins.hasPlugin('com.android.library')
+}
+
+def canBePublished() {
+   def isRoot = (rootProject == project)
+   def hasAComponent = components.size() > 0
+   def skip = hasProperty('publish_artifact') && publish_artifact == 'false'
+
+   return !skip && hasAComponent && !isRoot && !isAndroidApp()
+}
+
+task sourcesJarArtifactory(type: Jar) {
+   archiveBaseName.set("base")
+   archiveClassifier.set("sources")
+
+   def sources = null
+   if (project.hasProperty('android')) {
+      sources = android.sourceSets.main
+   } else if (project.hasProperty('sourceSets')) {
+      sources = sourceSets.main
+   } else {
+      return
+   }
+
+   from sources.java.srcDirs
+}
+
+afterEvaluate {
+   if (!canBePublished()) {
+      return
+   }
+
+   configurePublishing()
+}
+
+def findComponent(String flavour) {
+   if (isAndroidLib()) {
+      return components.findByName(flavour)
+   } else {
+      return components.first()
+   }
+}
+
+def getTheArtifactId() {
+   if (hasProperty('POM_NAME')) {
+      return POM_NAME
+   } else {
+      return project.name
+   }
+}
+
+def configurePublishing() {
+
+   publishing {
+      publications {
+
+         all(MavenPublication) {
+            from findComponent("all")
+
+            groupId = GROUP
+            version = VERSION
+            artifactId = getTheArtifactId()
+            artifact sourcesJarArtifactory
+         }
+
+         release(MavenPublication) {
+            from findComponent("release")
+
+            groupId = GROUP
+            version = VERSION
+            artifactId = getTheArtifactId()
+            artifact sourcesJarArtifactory
+         }
+      }
+
+      repositories {
+         maven {
+            credentials {
+               username getCareemRepositoryUsername()
+               password getCareemRepositoryPassword()
+            }
+
+            if (project.VERSION.endsWith('-SNAPSHOT')) {
+               url "https://artifactory.assets.careem-engineering.com/artifactory/mobile-libs-snapshot"
+            } else {
+               url "https://artifactory.assets.careem-engineering.com/artifactory/mobile-libs-release"
+            }
+         }
+      }
+   }
+}

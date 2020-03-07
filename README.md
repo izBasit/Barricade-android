@@ -43,6 +43,13 @@ dependencies {
 }
 ```
 
+
+##How to release to local maven
+Run ./gradlew publishReleasePublicationToMavenLocal 
+
+##How to release to maven (Do this only if you know what you are doing)
+Run ./gradlew publishReleasePublicationToMavenRepository
+
 ## How to use
 
 1. Install Barricade in your `Application` class' `#onCreate()`
